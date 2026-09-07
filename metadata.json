@@ -1,0 +1,7 @@
+{
+  "name": "Remix: Remix: Remix: new nih bos Halal Auditor FIX",
+  "description": "An AI-powered MicroSaaS application that acts as a digital Halal Auditor. It analyzes products, ingredients, production processes, and financial transactions for Shariah compliance, and provides educational resources.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

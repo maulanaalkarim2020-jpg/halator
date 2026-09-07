@@ -1,0 +1,44 @@
+[
+  {
+    "name": "TenkaRyy",
+    "email": "malik@gmail.com",
+    "password": "$2b$10$UXk3aPFZiZ2u0DJgY9p34.f/YGh0sMe.LLF8S6cjPb.BQh/NMmgWi",
+    "phone": "089525461403",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=TenkaRyy",
+    "affiliateCode": "TENK9955",
+    "role": "user",
+    "subscription": {
+      "plan": "free",
+      "status": "active",
+      "expiresAt": "2026-10-07T03:14:37.918Z",
+      "limits": {
+        "auditsPerMonth": 5,
+        "auditsUsed": 0
+      }
+    },
+    "id": "usr_1788750877993_yax4q",
+    "createdAt": "2026-09-07T03:14:37.993Z",
+    "updatedAt": "2026-09-07T03:14:37.993Z"
+  },
+  {
+    "name": "bimbim",
+    "email": "bima@gmail.com",
+    "password": "$2b$10$kiwqVE771Y9k7RAFFfNjsOoEKlbpGzTRf10X5dZpvg70g/fV3aPDG",
+    "phone": "089525461403",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=bimbim",
+    "affiliateCode": "BIMB3738",
+    "role": "user",
+    "subscription": {
+      "plan": "free",
+      "status": "active",
+      "expiresAt": "2026-10-07T03:16:12.234Z",
+      "limits": {
+        "auditsPerMonth": 5,
+        "auditsUsed": 0
+      }
+    },
+    "id": "usr_1788750972358_4bq8w",
+    "createdAt": "2026-09-07T03:16:12.358Z",
+    "updatedAt": "2026-09-07T03:16:12.358Z"
+  }
+]
