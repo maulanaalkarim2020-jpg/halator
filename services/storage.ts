@@ -18,19 +18,74 @@ export const storage = {
       localStorage.setItem(KEYS.LANGUAGE, 'id');
     }
     
-    // Initialize USERS list if empty
-    if (!localStorage.getItem(KEYS.USERS)) {
-      localStorage.setItem(KEYS.USERS, JSON.stringify([SEED_USER, DEMO_USER]));
+    // Ensure clean USERS list (remove any legacy mock users)
+    const rawUsers = localStorage.getItem(KEYS.USERS);
+    if (rawUsers) {
+      try {
+        const users: User[] = JSON.parse(rawUsers);
+        const realUsers = users.filter(
+          (u) =>
+            u.email !== 'ahmad@example.com' &&
+            u.email !== 'halatordemo@demo.id' &&
+            u.id !== 'user-123' &&
+            u.id !== 'demo-user-1'
+        );
+        localStorage.setItem(KEYS.USERS, JSON.stringify(realUsers));
+      } catch {
+        localStorage.setItem(KEYS.USERS, JSON.stringify([]));
+      }
+    } else {
+      localStorage.setItem(KEYS.USERS, JSON.stringify([]));
     }
 
-    // Initialize Global History if empty
-    if (!localStorage.getItem(KEYS.HISTORY)) {
-      localStorage.setItem(KEYS.HISTORY, JSON.stringify([...SEED_HISTORY, ...DEMO_HISTORY]));
+    // Ensure clean HISTORY list (remove any mock history)
+    const rawHistory = localStorage.getItem(KEYS.HISTORY);
+    if (rawHistory) {
+      try {
+        const history: AuditHistoryItem[] = JSON.parse(rawHistory);
+        const realHistory = history.filter(
+          (h) =>
+            h.id !== 'h1' &&
+            h.id !== 'h2' &&
+            h.id !== 'dh1' &&
+            h.id !== 'dh2' &&
+            h.id !== 'dh3' &&
+            h.userId !== 'user-123' &&
+            h.userId !== 'demo-user-1'
+        );
+        localStorage.setItem(KEYS.HISTORY, JSON.stringify(realHistory));
+      } catch {
+        localStorage.setItem(KEYS.HISTORY, JSON.stringify([]));
+      }
+    } else {
+      localStorage.setItem(KEYS.HISTORY, JSON.stringify([]));
     }
 
-    if (!localStorage.getItem(KEYS.AFFILIATE)) {
-      localStorage.setItem(KEYS.AFFILIATE, JSON.stringify(SEED_AFFILIATE));
+    // Logout session if logged in as a mock user
+    const currentUser = storage.getUser();
+    if (
+      currentUser &&
+      (currentUser.email === 'ahmad@example.com' ||
+        currentUser.email === 'halatordemo@demo.id' ||
+        currentUser.id === 'user-123' ||
+        currentUser.id === 'demo-user-1')
+    ) {
+      storage.logout();
     }
+
+    // Remove legacy mock affiliate data
+    const rawAffiliate = localStorage.getItem(KEYS.AFFILIATE);
+    if (rawAffiliate) {
+      try {
+        const aff = JSON.parse(rawAffiliate);
+        if (aff.code === 'AHMADHALAL' || aff.code === 'DEMOHALAL') {
+          localStorage.removeItem(KEYS.AFFILIATE);
+        }
+      } catch {
+        localStorage.removeItem(KEYS.AFFILIATE);
+      }
+    }
+
     if (!localStorage.getItem(KEYS.FAQS)) {
       localStorage.setItem(KEYS.FAQS, JSON.stringify(SEED_FAQS));
     }
@@ -43,15 +98,25 @@ export const storage = {
 
   register: (userData: Omit<User, 'id' | 'subscription' | 'createdAt' | 'role'> & { password: string }): User | string => {
     const users = storage.getUsers();
-    if (users.find(u => u.email === userData.email)) {
-      return 'Email already registered';
+    const cleanEmail = userData.email.toLowerCase().trim();
+
+    // Prevent duplicate emails
+    if (users.some((u) => u.email.toLowerCase().trim() === cleanEmail)) {
+      return 'Email sudah terdaftar. Silakan gunakan email lain atau masuk.';
     }
+
+    const cleanName = userData.name.trim();
+    const initials = cleanName.replace(/[^a-zA-Z]/g, '').slice(0, 4).toUpperCase() || 'USER';
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
 
     const newUser: User = {
       ...userData,
+      name: cleanName,
+      email: cleanEmail,
       id: `user-${Date.now()}`,
       role: 'user',
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.name}`,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanName)}`,
+      affiliateCode: `${initials}${randomSuffix}`,
       subscription: {
         plan: 'free',
         status: 'active',
@@ -70,9 +135,10 @@ export const storage = {
 
   login: (email: string, password: string): User | string => {
     const users = storage.getUsers();
-    const user = users.find(u => u.email === email && u.password === password);
+    const cleanEmail = email.toLowerCase().trim();
+    const user = users.find((u) => u.email.toLowerCase().trim() === cleanEmail && u.password === password);
     if (!user) {
-      return 'Invalid email or password';
+      return 'Email atau kata sandi salah.';
     }
     storage.setUser(user);
     return user;
@@ -121,8 +187,27 @@ export const storage = {
   },
 
   getAffiliate: (): AffiliateData | null => {
+    const user = storage.getUser();
+    if (!user) return null;
     const data = localStorage.getItem(KEYS.AFFILIATE);
-    return data ? JSON.parse(data) : null;
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.code !== 'AHMADHALAL' && parsed.code !== 'DEMOHALAL') {
+          return parsed;
+        }
+      } catch {
+        // Continue to recreate
+      }
+    }
+    const cleanAff: AffiliateData = {
+      code: user.affiliateCode || 'HALA' + Math.floor(1000 + Math.random() * 9000),
+      referrals: 0,
+      earnings: 0,
+      payoutHistory: [],
+    };
+    localStorage.setItem(KEYS.AFFILIATE, JSON.stringify(cleanAff));
+    return cleanAff;
   },
 
   getFAQs: (): FAQ[] => {
