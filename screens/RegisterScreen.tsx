@@ -43,7 +43,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onNavigate, onRegisterS
         toast.success(res.message || t('authSuccess'));
         storage.setUser(res.data.user);
         onRegisterSuccess();
-      } else if (res.message && !res.message.includes('Koneksi ke server gagal')) {
+      } else if (
+        !res.isNetworkError &&
+        res.message &&
+        !res.message.includes('Koneksi ke server gagal') &&
+        !res.message.toLowerCase().includes('failed to fetch')
+      ) {
         // Backend reached and returned business validation error (e.g. Email already used)
         toast.error(res.message);
       } else {
@@ -59,7 +64,20 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onNavigate, onRegisterS
         }
       }
     } catch (error: any) {
-      toast.error(error.message || 'Terjadi kesalahan');
+      console.warn('Register exception, fallback to local storage', error);
+      try {
+        const { confirmPassword, ...registerData } = formData;
+        const localResult = storage.register(registerData);
+        if (typeof localResult === 'string') {
+          toast.error(localResult);
+        } else {
+          toast.success(t('authSuccess'));
+          storage.setUser(localResult);
+          onRegisterSuccess();
+        }
+      } catch (innerErr: any) {
+        toast.error(innerErr.message || 'Terjadi kesalahan saat registrasi');
+      }
     } finally {
       setIsLoading(false);
     }

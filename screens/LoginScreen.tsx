@@ -31,7 +31,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate, onLoginSuccess })
         toast.success(res.message || t('authSuccess'));
         storage.setUser(res.data.user);
         onLoginSuccess();
-      } else if (res.message && !res.message.includes('Koneksi ke server gagal')) {
+      } else if (
+        !res.isNetworkError &&
+        res.message &&
+        !res.message.includes('Koneksi ke server gagal') &&
+        !res.message.toLowerCase().includes('failed to fetch')
+      ) {
         // Backend reached and returned business validation error (e.g. wrong password)
         toast.error(res.message);
       } else {
@@ -46,7 +51,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate, onLoginSuccess })
         }
       }
     } catch (error: any) {
-      toast.error(error.message || 'Terjadi kesalahan');
+      console.warn('Login exception, fallback to local storage', error);
+      try {
+        const result = storage.login(email, password);
+        if (typeof result === 'string') {
+          toast.error(result);
+        } else {
+          toast.success(t('authSuccess'));
+          onLoginSuccess();
+        }
+      } catch (innerErr: any) {
+        toast.error(innerErr.message || 'Terjadi kesalahan saat masuk');
+      }
     } finally {
       setIsLoading(false);
     }

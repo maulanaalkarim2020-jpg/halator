@@ -21,6 +21,7 @@ interface ApiResponse<T = any> {
   message?: string;
   data?: T;
   error?: string;
+  isNetworkError?: boolean;
 }
 
 async function request<T = any>(
@@ -52,10 +53,11 @@ async function request<T = any>(
 
     return data;
   } catch (error: any) {
-    console.warn(`[API Network Error on ${endpoint}]`, error);
+    console.warn(`[API Network Notice on ${endpoint}] Backend server unreachable, using offline fallback.`, error);
     return {
       success: false,
-      message: error.message || 'Koneksi ke server gagal. Pastikan backend aktif.',
+      message: 'Koneksi ke server gagal. Pastikan backend aktif.',
+      isNetworkError: true,
     };
   }
 }
