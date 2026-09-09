@@ -1,7 +1,22 @@
 import { User, AuditHistoryItem, AffiliateData } from '../types';
 
-// Default API URL can be configured in root .env as VITE_API_URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Configurable backend API URL with fallback
+export const getApiUrl = (): string => {
+  const custom = localStorage.getItem('halator_custom_api_url');
+  if (custom && custom.trim().length > 5) {
+    return custom.trim().replace(/\/+$/, '');
+  }
+  return ((import.meta.env.VITE_API_URL as string) || 'http://localhost:5000/api').replace(/\/+$/, '');
+};
+
+export const setCustomApiUrl = (url: string): void => {
+  if (url && url.trim().length > 5) {
+    localStorage.setItem('halator_custom_api_url', url.trim().replace(/\/+$/, ''));
+  } else {
+    localStorage.removeItem('halator_custom_api_url');
+  }
+};
+
 const TOKEN_KEY = 'halator_auth_token';
 
 export const tokenStorage = {
@@ -35,8 +50,10 @@ async function request<T = any>(
     ...(options.headers || {}),
   };
 
+  const baseUrl = getApiUrl();
+
   try {
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await fetch(`${baseUrl}${endpoint}`, {
       ...options,
       headers,
     });
@@ -103,6 +120,16 @@ export const authApi = {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
+  },
+
+  deleteAccount: async () => {
+    const res = await request('/auth/account', {
+      method: 'DELETE',
+    });
+    if (res.success) {
+      tokenStorage.remove();
+    }
+    return res;
   },
 
   logout: () => {

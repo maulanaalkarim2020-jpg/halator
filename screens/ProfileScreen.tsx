@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { storage } from '../services/storage';
-import { authApi } from '../services/api';
+import { authApi, getApiUrl, setCustomApiUrl } from '../services/api';
 import { User } from '../types';
 import { toast } from 'sonner';
 import { UserIcon, SunIcon, MoonIcon, HistoryIcon, ShieldIcon, GlobeIcon, CreditCardIcon } from '../components/Icons';
+import { Trash2, Server, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 import { motion } from 'motion/react';
 
@@ -23,6 +24,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ theme, toggleTheme }) =
   const [businessAddress, setBusinessAddress] = useState(user?.businessAddress || '');
   const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'account'>('profile');
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [serverUrl, setServerUrl] = useState(getApiUrl());
+  const [isTestingUrl, setIsTestingUrl] = useState(false);
+  const [serverStatus, setServerStatus] = useState<'idle' | 'connected' | 'error'>('idle');
 
   const handleSave = async () => {
     if (!user) return;
@@ -58,6 +63,53 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ theme, toggleTheme }) =
       toast.error(error.message || 'Gagal menyimpan perubahan');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      t('deleteAccountConfirm') ||
+      'PERINGATAN KERAS: Apakah Anda yakin ingin menghapus akun ini secara permanen?\n\nSemua data profil, riwayat audit, dan data afiliasi Anda di MongoDB Atlas akan dihapus selamanya dan tidak dapat dikembalikan.'
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await authApi.deleteAccount();
+      if (res.success || !res.isNetworkError) {
+        toast.success(res.message || 'Akun Anda di MongoDB berhasil dihapus permanen.');
+        storage.clear();
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 800);
+      } else {
+        toast.error(res.message || 'Gagal menghapus akun dari server backend.');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal menghapus akun');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSaveServerUrl = async () => {
+    if (!serverUrl.trim()) return;
+    setIsTestingUrl(true);
+    setCustomApiUrl(serverUrl);
+    try {
+      const res = await authApi.getMe();
+      if (res.success || !res.isNetworkError) {
+        setServerStatus('connected');
+        toast.success('Berhasil terhubung ke Backend Server Railway & MongoDB!');
+      } else {
+        setServerStatus('error');
+        toast.error('Gagal terhubung ke backend. Periksa kembali URL Anda.');
+      }
+    } catch {
+      setServerStatus('error');
+      toast.error('Gagal terhubung ke backend server.');
+    } finally {
+      setIsTestingUrl(false);
     }
   };
 
@@ -300,22 +352,97 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ theme, toggleTheme }) =
                 </div>
               </div>
 
-              <div className="bg-red-50 dark:bg-red-950/20 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-red-100 dark:border-red-900/30 space-y-4 md:space-y-6">
+              {/* Backend Server Connection Settings */}
+              <div className="bg-white dark:bg-gray-900 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-gray-100 dark:border-gray-800 shadow-xl shadow-black/5 space-y-4 md:space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-2xl bg-green-500/10 text-green-600 dark:text-green-400">
+                      <Server className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg md:text-xl font-black text-gray-900 dark:text-white uppercase tracking-tight">Koneksi Backend & MongoDB</h3>
+                      <p className="text-xs text-gray-400 font-medium mt-0.5">Alamat backend API Railway untuk menyimpan profil dan audit ke MongoDB Atlas.</p>
+                    </div>
+                  </div>
+                  {serverStatus === 'connected' && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 text-green-600 text-[10px] font-black uppercase tracking-widest border border-green-500/20 w-fit">
+                      <CheckCircle2 className="w-3 h-3" /> Terhubung
+                    </span>
+                  )}
+                  {serverStatus === 'error' && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/10 text-red-600 text-[10px] font-black uppercase tracking-widest border border-red-500/20 w-fit">
+                      <AlertCircle className="w-3 h-3" /> Terputus
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={serverUrl}
+                    onChange={(e) => setServerUrl(e.target.value)}
+                    placeholder="https://your-backend.up.railway.app/api"
+                    className="flex-1 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 font-bold text-xs text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500 shadow-inner"
+                  />
+                  <button
+                    onClick={handleSaveServerUrl}
+                    disabled={isTestingUrl}
+                    className="px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-[10px] transition-all cursor-pointer disabled:opacity-60 shrink-0 shadow-lg shadow-green-600/20"
+                  >
+                    {isTestingUrl ? 'Menghubungkan...' : 'Simpan & Tes Koneksi'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Danger Zone */}
+              <div className="bg-red-50 dark:bg-red-950/20 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-red-100 dark:border-red-900/30 space-y-6">
                 <div className="flex items-center gap-4 text-red-600 dark:text-red-400">
                   <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg md:rounded-xl">
                     <HistoryIcon className="w-5 md:w-6 h-5 md:h-6" />
                   </div>
                   <h3 className="text-lg md:text-xl font-black uppercase tracking-tight">{t('dangerZone')}</h3>
                 </div>
-                <p className="text-xs md:text-sm text-red-700/60 dark:text-red-400/60 font-medium max-w-lg">
-                  {t('resetDataDescription')}
-                </p>
-                <button 
-                  onClick={handleReset}
-                  className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white px-8 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-2xl shadow-red-600/20 active:scale-95 transition-all"
-                >
-                  {t('resetAllData')}
-                </button>
+
+                {/* Reset Local Data */}
+                <div className="space-y-3">
+                  <p className="text-xs md:text-sm text-red-700/70 dark:text-red-400/70 font-medium max-w-lg">
+                    {t('resetDataDescription')}
+                  </p>
+                  <button 
+                    onClick={handleReset}
+                    className="w-full sm:w-auto bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 px-6 py-3.5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 cursor-pointer"
+                  >
+                    {t('resetAllData')}
+                  </button>
+                </div>
+
+                {/* Permanent Delete Account (MongoDB) */}
+                <div className="pt-6 border-t border-red-200 dark:border-red-900/40 space-y-3">
+                  <h4 className="text-sm font-black uppercase tracking-tight text-red-600 dark:text-red-400 flex items-center gap-2">
+                    <Trash2 className="w-4 h-4" />
+                    {t('deleteAccount')}
+                  </h4>
+                  <p className="text-xs md:text-sm text-red-700/80 dark:text-red-400/80 font-medium max-w-lg">
+                    {t('deleteAccountDesc')}
+                  </p>
+                  <button 
+                    onClick={handleDeleteAccount}
+                    disabled={isDeleting}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white px-8 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-2xl shadow-red-600/30 active:scale-95 transition-all cursor-pointer"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Menghapus Akun dari MongoDB...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        <span>{t('deleteAccount')}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}

@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { User } from '../models/User.js';
 import { Affiliate } from '../models/Affiliate.js';
+import { AuditHistory } from '../models/AuditHistory.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { isDbConnected, localStore } from '../config/storageEngine.js';
 
@@ -315,11 +316,26 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
         }
       }
 
+      // If name changed, update affiliate code too so MongoDB affiliates collection stays in sync!
+      if (updates.name) {
+        const initials = updates.name.replace(/[^a-zA-Z]/g, '').slice(0, 4).toUpperCase() || 'USER';
+        const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+        updates.affiliateCode = `${initials}${randomSuffix}`;
+      }
+
       const updatedUser = await User.findByIdAndUpdate(
         req.user._id,
         { $set: updates },
         { new: true, runValidators: true }
       ).select('-password');
+
+      if (updates.affiliateCode) {
+        await Affiliate.findOneAndUpdate(
+          { userId: req.user._id },
+          { $set: { code: updates.affiliateCode } },
+          { upsert: true }
+        );
+      }
 
       res.status(200).json({
         success: true,
@@ -365,6 +381,53 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     res.status(500).json({
       success: false,
       message: 'Gagal memperbarui profil.',
+      error: error.message,
+    });
+  }
+};
+
+export const deleteAccount = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Tidak terotentikasi.' });
+      return;
+    }
+
+    const userId = (req.user._id || req.user.id).toString();
+
+    if (isDbConnected()) {
+      // 1. Delete user record in MongoDB
+      await User.findByIdAndDelete(req.user._id);
+
+      // 2. Delete all audit history of this user in MongoDB
+      await AuditHistory.deleteMany({ userId });
+
+      // 3. Delete affiliate record in MongoDB
+      await Affiliate.deleteMany({ userId: req.user._id });
+
+      res.status(200).json({
+        success: true,
+        message: 'Akun dan seluruh data Anda di MongoDB berhasil dihapus permanen.',
+      });
+      return;
+    }
+
+    // Local Store fallback deletion
+    const users = localStore.getUsers();
+    localStore.saveUsers(users.filter((u) => u.id !== userId));
+
+    const audits = localStore.getAudits();
+    localStore.saveAudits(audits.filter((a) => a.userId !== userId));
+
+    res.status(200).json({
+      success: true,
+      message: 'Akun dan seluruh data berhasil dihapus permanen.',
+    });
+  } catch (error: any) {
+    console.error('[Delete Account Error]', error);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal menghapus akun dari server.',
       error: error.message,
     });
   }
