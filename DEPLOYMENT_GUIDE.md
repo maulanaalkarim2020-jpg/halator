@@ -1,4 +1,4 @@
-# 🚀 Panduan Lengkap Deployment Backend Halator ke Cloud
+![alt text](<Screenshot (183).png>) ![alt text](<Screenshot (181).png>) ![alt text](<Screenshot (182).png>)# 🚀 Panduan Lengkap Deployment Backend Halator ke Cloud
 
 Dokumentasi ini menjelaskan langkah demi langkah cara menyiapkan database cloud, menjalankan backend, dan men-deploy-nya ke Cloud agar website Halator bisa diakses online secara penuh melalui browser **Google Chrome** dari perangkat mana saja.
 

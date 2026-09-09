@@ -11,7 +11,7 @@ export interface IAuditHistory extends Document {
 const AuditHistorySchema = new Schema<IAuditHistory>(
   {
     userId: {
-      type: Schema.Types.ObjectId,
+      type: Schema.Types.Mixed,
       ref: 'User',
       required: true,
       index: true,

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { storage } from '../services/storage';
+import { authApi } from '../services/api';
 import { User } from '../types';
 import { toast } from 'sonner';
 import { UserIcon, SunIcon, MoonIcon, HistoryIcon, ShieldIcon, GlobeIcon, CreditCardIcon } from '../components/Icons';
@@ -21,19 +22,42 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ theme, toggleTheme }) =
   const [businessName, setBusinessName] = useState(user?.businessName || '');
   const [businessAddress, setBusinessAddress] = useState(user?.businessAddress || '');
   const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'account'>('profile');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = () => {
-    if (user) {
-      storage.setUser({ 
-        ...user, 
-        name, 
+  const handleSave = async () => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const updates = {
+        name,
         email,
         gender,
         phone,
         businessName,
-        businessAddress
-      });
-      toast.success(t('profileUpdated'));
+        businessAddress,
+      };
+
+      // Call Backend REST API (MongoDB)
+      const res = await authApi.updateProfile(updates);
+
+      if (res.success && res.data?.user) {
+        // Successfully updated in MongoDB!
+        storage.setUser(res.data.user);
+        toast.success(res.message || t('profileUpdated'));
+      } else if (!res.isNetworkError && res.message) {
+        toast.error(res.message);
+      } else {
+        // Fallback for offline mode
+        storage.setUser({ 
+          ...user, 
+          ...updates,
+        });
+        toast.success(t('profileUpdated'));
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal menyimpan perubahan');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -192,9 +216,17 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ theme, toggleTheme }) =
               <div className="pt-6">
                 <button 
                   onClick={handleSave}
-                  className="px-10 py-5 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl shadow-green-600/30 active:scale-95"
+                  disabled={isSaving}
+                  className="flex items-center justify-center gap-3 px-10 py-5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-2xl shadow-green-600/30 active:scale-95 cursor-pointer disabled:cursor-not-allowed"
                 >
-                  {t('saveChanges')}
+                  {isSaving ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>{language === 'id' ? 'Menyimpan...' : 'Saving...'}</span>
+                    </>
+                  ) : (
+                    <span>{t('saveChanges')}</span>
+                  )}
                 </button>
               </div>
             </motion.div>

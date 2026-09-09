@@ -164,17 +164,67 @@ export const storage = {
     return allHistory.filter(item => item.userId === user.id);
   },
 
-  addHistory: (item: AuditHistoryItem) => {
+  addHistory: async (item: AuditHistoryItem) => {
     const data = localStorage.getItem(KEYS.HISTORY);
     const history = data ? JSON.parse(data) : [];
     localStorage.setItem(KEYS.HISTORY, JSON.stringify([item, ...history]));
 
-    // Asynchronously sync to Backend Server
-    auditApi.createAudit({
-      type: item.type,
-      input: item.input,
-      output: item.output,
-    }).catch(err => console.warn('[Backend Audit Sync Notice]', err));
+    // Asynchronously sync to Backend Server (MongoDB)
+    try {
+      const res = await auditApi.createAudit({
+        type: item.type,
+        input: item.input,
+        output: item.output,
+      });
+
+      if (res.success && res.data?.audit) {
+        const serverAudit = res.data.audit as any;
+        const serverId = serverAudit._id || serverAudit.id;
+        if (serverId) {
+          const raw = localStorage.getItem(KEYS.HISTORY);
+          const currentList = raw ? JSON.parse(raw) : [];
+          const idx = currentList.findIndex((h: AuditHistoryItem) => h.id === item.id);
+          if (idx !== -1) {
+            currentList[idx].id = serverId;
+            localStorage.setItem(KEYS.HISTORY, JSON.stringify(currentList));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Backend Audit Sync Notice]', err);
+    }
+  },
+
+  syncHistoryWithBackend: async (): Promise<AuditHistoryItem[]> => {
+    try {
+      const user = storage.getUser();
+      if (!user) return storage.getHistory();
+
+      const res = await auditApi.getHistory();
+      if (res.success && res.data?.items) {
+        const remoteItems: AuditHistoryItem[] = res.data.items.map((it: any) => ({
+          id: it._id ? it._id.toString() : it.id,
+          userId: it.userId ? it.userId.toString() : user.id,
+          type: it.type,
+          input: it.input,
+          output: it.output,
+          timestamp: it.timestamp || it.createdAt || new Date().toISOString(),
+        }));
+
+        const local = storage.getHistory();
+        const merged = [...remoteItems];
+        for (const loc of local) {
+          if (!merged.some((m) => m.id === loc.id || (m.input === loc.input && m.type === loc.type))) {
+            merged.push(loc);
+          }
+        }
+        localStorage.setItem(KEYS.HISTORY, JSON.stringify(merged));
+        return merged;
+      }
+    } catch (e) {
+      console.warn('[Sync History Notice]', e);
+    }
+    return storage.getHistory();
   },
 
   deleteHistory: (id: string) => {

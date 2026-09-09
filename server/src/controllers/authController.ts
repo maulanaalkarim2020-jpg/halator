@@ -274,21 +274,52 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const allowedFields = ['name', 'phone', 'gender', 'businessName', 'businessAddress', 'avatar'];
+    const allowedFields = ['name', 'email', 'phone', 'gender', 'businessName', 'businessAddress', 'avatar'];
     const updates: Record<string, any> = {};
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
+        if (field === 'email') {
+          updates.email = req.body.email.trim().toLowerCase();
+        } else if (typeof req.body[field] === 'string') {
+          updates[field] = req.body[field].trim();
+        } else {
+          updates[field] = req.body[field];
+        }
+      }
+    }
+
+    if (updates.email) {
+      const emailRegex = /^\S+@\S+\.\S+$/;
+      if (!emailRegex.test(updates.email)) {
+        res.status(400).json({
+          success: false,
+          message: 'Format email tidak valid.',
+        });
+        return;
       }
     }
 
     if (isDbConnected()) {
+      if (updates.email) {
+        const existing = await User.findOne({
+          email: updates.email,
+          _id: { $ne: req.user._id },
+        });
+        if (existing) {
+          res.status(400).json({
+            success: false,
+            message: 'Email tersebut sudah digunakan oleh akun lain.',
+          });
+          return;
+        }
+      }
+
       const updatedUser = await User.findByIdAndUpdate(
         req.user._id,
         { $set: updates },
         { new: true, runValidators: true }
-      );
+      ).select('-password');
 
       res.status(200).json({
         success: true,
@@ -302,7 +333,21 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 
     // Local Store update
     const users = localStore.getUsers();
-    const idx = users.findIndex((u) => u.id === req.user?.id || u.id === req.user?._id);
+    const currentId = (req.user as any).id || (req.user as any)._id;
+    if (updates.email) {
+      const existing = users.find(
+        (u) => u.email.toLowerCase().trim() === updates.email && u.id !== currentId
+      );
+      if (existing) {
+        res.status(400).json({
+          success: false,
+          message: 'Email tersebut sudah digunakan oleh akun lain.',
+        });
+        return;
+      }
+    }
+
+    const idx = users.findIndex((u) => u.id === currentId);
     if (idx !== -1) {
       users[idx] = { ...users[idx], ...updates, updatedAt: new Date().toISOString() };
       localStore.saveUsers(users);

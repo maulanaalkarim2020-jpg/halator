@@ -51,13 +51,16 @@ interface DashboardScreenProps {
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
   const [isLoading, setIsLoading] = React.useState(true);
   const user = storage.getUser();
-  const history = storage.getHistory() as AuditHistoryItem[];
+  const [history, setHistory] = React.useState<AuditHistoryItem[]>(() => storage.getHistory() as AuditHistoryItem[]);
   const { t, language } = useLanguage();
 
   React.useEffect(() => {
-    // Simulate initial load for skeleton demonstration
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
+    storage.syncHistoryWithBackend().then((synced) => {
+      setHistory(synced);
+      setIsLoading(false);
+    }).catch(() => {
+      setIsLoading(false);
+    });
   }, []);
 
   const complianceScore = useMemo(() => {

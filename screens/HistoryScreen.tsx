@@ -31,6 +31,12 @@ const HistoryScreen: React.FC<HistoryScreenProps> = ({ selectedId }) => {
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   React.useEffect(() => {
+    storage.syncHistoryWithBackend().then((synced) => {
+      setHistory(synced);
+    });
+  }, []);
+
+  React.useEffect(() => {
     if (selectedId) {
       const item = history.find(h => h.id === selectedId);
       if (item) {
